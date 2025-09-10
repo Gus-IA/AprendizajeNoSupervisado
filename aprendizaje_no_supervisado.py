@@ -13,6 +13,8 @@ import matplotlib as mpl
 from sklearn.datasets import make_moons
 from sklearn.cluster import DBSCAN
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.mixture import GaussianMixture
+from matplotlib.colors import LogNorm
 
 # ---- K-Means ----
 
@@ -319,4 +321,77 @@ print(knn.predict_proba(X_new))
 plt.figure(figsize=(6, 3))
 plot_decision_boundaries(knn, X, show_centroids=False)
 plt.scatter(X_new[:, 0], X_new[:, 1], c="b", marker="+", s=200, zorder=10)
+plt.show()
+
+
+
+# ---- Gaussian mixtures ----
+
+# generamos dos dataset distintos con make_blobs y los juntamos
+X1, y1 = make_blobs(n_samples=1000, centers=((4, -4), (0, 0)), random_state=42)
+X1 = X1.dot(np.array([[0.374, 0.95], [0.732, 0.598]]))
+X2, y2 = make_blobs(n_samples=250, centers=1, random_state=42)
+X2 = X2 + [6, -8]
+X = np.r_[X1, X2]
+y = np.r_[y1, y2]
+plot_clusters(X)
+
+
+# instanciamos el modelo y lo entrenamos
+gm = GaussianMixture(n_components=3, n_init=10, random_state=42)
+gm.fit(X)
+
+
+
+
+# y mostramos el gráfico
+def plot_gaussian_mixture(clusterer, X, resolution=1000, show_ylabels=True):
+    mins = X.min(axis=0) - 0.1
+    maxs = X.max(axis=0) + 0.1
+    xx, yy = np.meshgrid(np.linspace(mins[0], maxs[0], resolution),
+                         np.linspace(mins[1], maxs[1], resolution))
+    Z = -clusterer.score_samples(np.c_[xx.ravel(), yy.ravel()])
+    Z = Z.reshape(xx.shape)
+
+    plt.contourf(xx, yy, Z,
+                 norm=LogNorm(vmin=1.0, vmax=30.0),
+                 levels=np.logspace(0, 2, 12))
+    plt.contour(xx, yy, Z,
+                norm=LogNorm(vmin=1.0, vmax=30.0),
+                levels=np.logspace(0, 2, 12),
+                linewidths=1, colors='k')
+
+    Z = clusterer.predict(np.c_[xx.ravel(), yy.ravel()])
+    Z = Z.reshape(xx.shape)
+    plt.contour(xx, yy, Z,
+                linewidths=2, colors='r', linestyles='dashed')
+    
+    plt.plot(X[:, 0], X[:, 1], 'k.', markersize=2)
+    plot_centroids(clusterer.means_, clusterer.weights_)
+
+    plt.xlabel("$x_1$", fontsize=14)
+    if show_ylabels:
+        plt.ylabel("$x_2$", fontsize=14, rotation=0)
+    else:
+        plt.tick_params(labelleft=False)
+
+plt.figure(figsize=(8, 4))
+plot_gaussian_mixture(gm, X)
+plt.show()
+
+
+
+# vamos a detectar anomalias
+densities = gm.score_samples(X)
+density_threshold = np.percentile(densities, 4)
+anomalies = X[densities < density_threshold]
+
+
+# mostramos el gráfico
+plt.figure(figsize=(8, 4))
+
+plot_gaussian_mixture(gm, X)
+plt.scatter(anomalies[:, 0], anomalies[:, 1], color='r', marker='*')
+plt.ylim(top=5.1)
+
 plt.show()
